@@ -1,26 +1,23 @@
-# Use the official Node.js image as the base image
 FROM node:20-alpine
 
-# Set the working directory inside the container
+# Install pnpm globally
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
 WORKDIR /app
 
-# Copy only package.json first (for installing dependencies)
+# Copy package.json and pnpm config
 COPY package.json ./
+COPY pnpm-lock.yaml ./
+COPY pnpm-workspace.yaml ./
 
-# If you have a package-lock.json, uncomment the next line:
-# COPY package-lock.json ./
+# Install dependencies using pnpm
+RUN pnpm install --frozen-lockfile
 
-# Install dependencies
-RUN npm install --legacy-peer-deps
-
-# Copy all remaining files into the container
+# Copy remaining files
 COPY . .
 
-# Build the project (if you have a build script, e.g., for Next.js)
-RUN npm run build
+# Build the project
+RUN pnpm build
 
-# Expose the app port (change if your app uses a different port)
-EXPOSE 3000
-
-# Start the application
-CMD ["npm", "start"]
+# Start the app
+CMD ["pnpm", "start"]
