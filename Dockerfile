@@ -1,19 +1,16 @@
+# Use a Node.js image with pnpm pre-installed
 FROM node:20-alpine
 
-# Install pnpm globally
-RUN corepack enable && corepack prepare pnpm@latest --activate
-
+# Set working directory
 WORKDIR /app
 
-# Copy package.json and pnpm config
+# Copy package.json first (for dependency caching)
 COPY package.json ./
-COPY pnpm-lock.yaml ./
-COPY pnpm-workspace.yaml ./
 
-# Install dependencies using pnpm
-RUN pnpm install --frozen-lockfile
+# Install dependencies with pnpm
+RUN npm install -g pnpm && pnpm install
 
-# Copy remaining files
+# Copy all remaining files
 COPY . .
 
 # Build the project
