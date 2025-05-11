@@ -1,54 +1,39 @@
-# Use the latest Bun canary image for access to latest features and performance improvements
-FROM oven/bun:canary AS base
+# Use official Node.js image for best compatibility with Railway
+FROM node:20-alpine AS base
 
-# Set working directory inside the container
+# Set working directory
 WORKDIR /app
 
-# Install global CLI tools for monorepo management and frontend framework
-RUN bun install -g next turbo
+# Copy package.json and package-lock.json (if it exists)
+COPY package.json ./
+COPY package-lock.json ./
 
-# Pre-copy lockfiles and monorepo config to leverage Docker layer caching during dependency resolution
-COPY package.json bun.lock turbo.json ./
+# Install dependencies
+RUN npm install --legacy-peer-deps
 
-# Prepare directory structure for scoped dependency installs
-RUN mkdir -p apps packages
-
-# Copy only the relevant package manifests to enable selective installation and caching
-COPY apps/*/package.json ./apps/
-COPY packages/*/package.json ./packages/
-COPY packages/tsconfig/ ./packages/tsconfig/
-
-# Install dependencies for the monorepo. This step benefits from above caching strategy.
-RUN bun install
-
-# Copy the rest of the codebase into the container
+# Copy all remaining files
 COPY . .
 
-# Run `bun install` again in case any additional dependencies are introduced after full source copy
-RUN bun install
+# Build the project
+RUN npm run build
 
-# Build all apps/packages via defined turbo pipeline
-RUN bun run build
+# Production image
+FROM node:20-alpine AS production
 
-# Use a smaller, stable Bun Alpine image for the production stage to minimize final image size
-FROM oven/bun:1.2.11-alpine AS production
-
-# Set working directory in production image
 WORKDIR /app
 
-# Copy fully built app from build stage
-COPY --from=base /app /app
+# Copy node_modules and built files from previous stage
+COPY --from=base /app/node_modules ./node_modules
+COPY --from=base /app/.next ./.next
+COPY --from=base /app/public ./public
+COPY --from=base /app/package.json ./package.json
 
-# Set production environment variables
+# Set environment variables
 ENV NODE_ENV=production
-ENV NODE_OPTIONS=--no-experimental-fetch 
+ENV NEXT_TELEMETRY_DISABLED=1
 
-# Add custom entrypoint script and ensure it is executable
-COPY entrypoint.sh /app/entrypoint.sh
-RUN chmod +x /app/entrypoint.sh
-
-# Expose application port
+# Expose port 3000
 EXPOSE 3000
 
-# Define container entrypoint script (e.g., to run DB migrations, start server, etc.)
-ENTRYPOINT ["/app/entrypoint.sh"]
+# Start the app
+CMD ["npm", "start"]
